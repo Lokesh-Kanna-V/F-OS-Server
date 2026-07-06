@@ -3,5 +3,8 @@ declare namespace NodeJS {
     NODE_ENV: "development" | "production" | "test";
     PORT?: string;
     DATABASE_URL: string;
+    JWT_SECRET: string;
+    JWT_EXPIRES_IN?: string;
+    CLIENT_ORIGIN?: string;
   }
 }
