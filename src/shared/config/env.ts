@@ -10,6 +10,10 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
   JWT_EXPIRES_IN: z.string().default("7d"),
   CLIENT_ORIGIN: z.string().default("http://localhost:3000"),
+  MQTT_BROKER_URL: z.string().min(1, "MQTT_BROKER_URL is required"),
+  MQTT_USERNAME: z.string().optional(),
+  MQTT_PASSWORD: z.string().optional(),
+  MQTT_TOPIC: z.string().default("factoryos/kettle-demo-01/events"),
 });
 
 export const env = envSchema.parse(process.env);
