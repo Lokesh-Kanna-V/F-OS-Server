@@ -12,6 +12,9 @@ export type Adxl345Snapshot = {
   onDurationMs: number;
   offDurationMs: number;
   telemetry: TelemetryPoint[];
+  baselineMaxRms: number | null;
+  alertActive: boolean;
+  lastAlertAt: number | null;
 };
 
 export type Adxl345Event =
@@ -24,4 +27,14 @@ export type Adxl345Event =
         offDurationMs: number;
       };
     }
-  | { type: "telemetry"; data: TelemetryPoint };
+  | { type: "telemetry"; data: TelemetryPoint }
+  | {
+      type: "alert";
+      data: {
+        active: boolean;
+        rms: number;
+        baselineMaxRms: number;
+        crossingCount: number;
+        timestamp: number;
+      };
+    };
