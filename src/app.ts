@@ -5,6 +5,7 @@ import morgan from "morgan";
 import { errorHandler } from "@/shared/middleware/error-handler";
 import { env } from "@/shared/config/env";
 import { authRouter } from "@/features/auth";
+import { adxl345Router } from "@/features/adxl345";
 
 export const app = express();
 
@@ -18,6 +19,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRouter);
+app.use("/api/adxl345", adxl345Router);
 
 // Feature routers are mounted here, e.g.:
 // app.use("/api/machines", machinesRouter);
