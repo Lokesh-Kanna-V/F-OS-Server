@@ -7,6 +7,9 @@ const MAX_TELEMETRY_POINTS = 200;
 
 let state: MachineState | null = null;
 let stateUpdatedAt: number | null = null;
+let lastTransitionAt = Date.now();
+let onDurationMs = 0;
+let offDurationMs = 0;
 const telemetry: TelemetryPoint[] = [];
 
 const listeners = new Set<(event: Adxl345Event) => void>();
@@ -16,9 +19,16 @@ const emit = (event: Adxl345Event) => {
 };
 
 const setState = (next: MachineState) => {
+  if (state === next) return;
+
+  const now = Date.now();
+  if (state === "on") onDurationMs += now - lastTransitionAt;
+  else if (state === "off") offDurationMs += now - lastTransitionAt;
+  lastTransitionAt = now;
+
   state = next;
-  stateUpdatedAt = Date.now();
-  emit({ type: "state", data: { state, stateUpdatedAt } });
+  stateUpdatedAt = now;
+  emit({ type: "state", data: { state, stateUpdatedAt, onDurationMs, offDurationMs } });
 };
 
 const parseState = (raw: string): MachineState | null => {
@@ -88,6 +98,8 @@ export const adxl345Service = {
   getSnapshot: (): Adxl345Snapshot => ({
     state,
     stateUpdatedAt,
+    onDurationMs,
+    offDurationMs,
     telemetry: [...telemetry],
   }),
 
