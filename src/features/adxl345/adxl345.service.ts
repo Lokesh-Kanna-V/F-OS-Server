@@ -7,9 +7,18 @@ const MAX_TELEMETRY_POINTS = 200;
 
 // How much cumulative running time to watch before locking in a baseline
 // vibration threshold, and how far above that baseline counts as abnormal.
-const CALIBRATION_WINDOW_MS = 20_000;
-const ALERT_MARGIN_MULTIPLIER = 1.5;
+const CALIBRATION_WINDOW_MS = 5_000;
+const ALERT_MARGIN_MULTIPLIER = 1.3;
 const MIN_BASELINE_MAX_RMS = 0.05;
+// Anchor the baseline to a high percentile of calibration samples rather
+// than the raw max — this signal is bursty (peaks several times higher than
+// typical readings show up on every run), so the single highest sample in
+// the window is a near-worst-case value, not a representative "usual max".
+const CALIBRATION_PERCENTILE = 0.95;
+// A run this brief is more likely a flicker in the state signal than the
+// machine genuinely stopping — don't lock in calibration off a near-empty
+// sample, just keep waiting for a real run.
+const MIN_RUN_MS_FOR_EARLY_LOCK = 1_000;
 
 // Alert on repeated crossings, not a single excursion: count how many times
 // the signal rises above the baseline within this rolling window, and only
@@ -28,12 +37,19 @@ let onDurationMs = 0;
 let offDurationMs = 0;
 const telemetry: TelemetryPoint[] = [];
 
-let calibrationMaxRms = 0;
+const calibrationSamples: number[] = [];
 let baselineMaxRms: number | null = null;
 let alertActive = false;
 let lastAlertAt: number | null = null;
 let previousRms: number | null = null;
 const crossingTimestamps: number[] = [];
+
+const computeBaselineFromSamples = (): number => {
+  const sorted = [...calibrationSamples].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.floor(sorted.length * CALIBRATION_PERCENTILE));
+  const percentileRms = sorted[index];
+  return Math.max(percentileRms * ALERT_MARGIN_MULTIPLIER, MIN_BASELINE_MAX_RMS);
+};
 
 const listeners = new Set<(event: Adxl345Event) => void>();
 
@@ -45,8 +61,23 @@ const setState = (next: MachineState) => {
   if (state === next) return;
 
   const now = Date.now();
-  if (state === "on") onDurationMs += now - lastTransitionAt;
-  else if (state === "off") offDurationMs += now - lastTransitionAt;
+  if (state === "on") {
+    onDurationMs += now - lastTransitionAt;
+    // Went back to idle before the calibration window elapsed — lock in
+    // whatever running time we've accumulated so far rather than waiting on
+    // a run that may not resume for a while. Checked against *cumulative*
+    // running time, not just this last streak, so a state signal that
+    // flickers briefly a few times doesn't reset progress toward this.
+    if (
+      baselineMaxRms === null &&
+      calibrationSamples.length > 0 &&
+      onDurationMs >= MIN_RUN_MS_FOR_EARLY_LOCK
+    ) {
+      baselineMaxRms = computeBaselineFromSamples();
+    }
+  } else if (state === "off") {
+    offDurationMs += now - lastTransitionAt;
+  }
   lastTransitionAt = now;
 
   state = next;
@@ -70,16 +101,16 @@ const checkForAnomaly = (rms: number, now: number) => {
   if (baselineMaxRms === null) {
     // Don't start learning "normal" until the machine has actually run —
     // vibration while off/idle isn't representative of its usual operating
-    // range. Gate on cumulative running time so an interrupted first run
-    // (machine toggled off mid-calibration) still finishes calibrating
-    // correctly once it's running again, rather than resetting.
+    // range. Locks in after CALIBRATION_WINDOW_MS of cumulative running
+    // time if it keeps running that long, or as soon as it goes back to
+    // idle (see setState) if that happens sooner — whichever comes first.
     if (state !== "on") return;
 
-    calibrationMaxRms = Math.max(calibrationMaxRms, rms);
+    calibrationSamples.push(rms);
 
     const liveOnDurationMs = onDurationMs + (now - lastTransitionAt);
     if (liveOnDurationMs >= CALIBRATION_WINDOW_MS) {
-      baselineMaxRms = Math.max(calibrationMaxRms * ALERT_MARGIN_MULTIPLIER, MIN_BASELINE_MAX_RMS);
+      baselineMaxRms = computeBaselineFromSamples();
     }
     return;
   }
