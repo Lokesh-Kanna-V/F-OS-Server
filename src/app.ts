@@ -6,6 +6,7 @@ import { errorHandler } from "@/shared/middleware/error-handler";
 import { env } from "@/shared/config/env";
 import { authRouter } from "@/features/auth";
 import { adxl345Router } from "@/features/adxl345";
+import { ctRouter } from "@/features/ct";
 
 export const app = express();
 
@@ -20,6 +21,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/auth", authRouter);
 app.use("/api/adxl345", adxl345Router);
+app.use("/api/ct", ctRouter);
 
 // Feature routers are mounted here, e.g.:
 // app.use("/api/machines", machinesRouter);
