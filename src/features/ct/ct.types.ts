@@ -11,6 +11,8 @@ export type CtSnapshot = {
   onDurationMs: number;
   offDurationMs: number;
   telemetry: CtTelemetryPoint[];
+  peakCurrent: number | null;
+  avgCurrent: number | null;
 };
 
 export type CtEvent =
@@ -23,4 +25,5 @@ export type CtEvent =
         offDurationMs: number;
       };
     }
-  | { type: "telemetry"; data: CtTelemetryPoint };
+  | { type: "telemetry"; data: CtTelemetryPoint }
+  | { type: "stats"; data: { peakCurrent: number; avgCurrent: number | null } };

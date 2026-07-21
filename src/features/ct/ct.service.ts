@@ -12,6 +12,12 @@ let onDurationMs = 0;
 let offDurationMs = 0;
 const telemetry: CtTelemetryPoint[] = [];
 
+let peakCurrent: number | null = null;
+// Averaged only over samples taken while current was actually being drawn,
+// so idle/off-state near-zero noise doesn't pull the average down.
+let sumCurrentOn = 0;
+let sampleCountOn = 0;
+
 const listeners = new Set<(event: CtEvent) => void>();
 
 const emit = (event: CtEvent) => {
@@ -69,7 +75,17 @@ const handleTelemetryMessage = (raw: string) => {
     if (parsedState) setState(parsedState);
   }
 
+  peakCurrent = peakCurrent === null ? current : Math.max(peakCurrent, current);
+  if (state === "on") {
+    sumCurrentOn += current;
+    sampleCountOn += 1;
+  }
+
   emit({ type: "telemetry", data: point });
+  emit({
+    type: "stats",
+    data: { peakCurrent, avgCurrent: sampleCountOn > 0 ? sumCurrentOn / sampleCountOn : null },
+  });
 };
 
 export const initCtMqtt = () => {
@@ -101,6 +117,8 @@ export const ctService = {
     onDurationMs,
     offDurationMs,
     telemetry: [...telemetry],
+    peakCurrent,
+    avgCurrent: sampleCountOn > 0 ? sumCurrentOn / sampleCountOn : null,
   }),
 
   subscribe: (listener: (event: CtEvent) => void) => {
